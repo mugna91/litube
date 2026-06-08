@@ -157,6 +157,11 @@ public class LitePlayer {
 			@Override
 			public void onIsPlayingChanged(boolean isPlaying) {
 				updateServiceProgress(isPlaying);
+				if (isPlaying) {
+					playerView.enableAutoPiP();
+				} else {
+					playerView.disableAutoPiP();
+				}
 			}
 
 			@Override
