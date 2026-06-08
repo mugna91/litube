@@ -384,6 +384,21 @@ public class LitePlayerView extends PlayerView {
 		return super.dispatchTouchEvent(event);
 	}
 
+	public void setNavbarVisible(boolean visible) {
+		if (!isFs) return;
+		View decorView = activity.getWindow().getDecorView();
+		if (visible) {
+			decorView.setSystemUiVisibility(
+				View.SYSTEM_UI_FLAG_LOW_PROFILE
+				| View.SYSTEM_UI_FLAG_FULLSCREEN
+				| View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+				| View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+			);
+		} else {
+			ViewUtils.setFullscreen(decorView, true);
+		}
+	}
+
 	private void animateMiniTransition(float startX,
 	                                   float startY,
 	                                   int startWidth,
