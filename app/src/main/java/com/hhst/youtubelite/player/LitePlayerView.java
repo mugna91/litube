@@ -230,6 +230,11 @@ public class LitePlayerView extends PlayerView {
 		activity.setPictureInPictureParams(buildPiPParams(false));
 	}
 
+	public void enableAutoPiP() {
+		if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) return;
+		activity.setPictureInPictureParams(buildPiPParams(true));
+	}
+
 	public void enterInAppMiniPlayer() {
 		if (inAppMiniPlayer) return;
 		float startX = getX();
