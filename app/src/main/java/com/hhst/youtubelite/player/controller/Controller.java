@@ -662,6 +662,11 @@ public class Controller {
 	}
 
 	private void setupOverlayAndMoreButtons() {
+		ImageButton btnPip = playerView.findViewById(R.id.btn_pip);
+		if (btnPip != null) {
+			btnPip.setVisibility(extensionManager.isEnabled(Constant.ENABLE_PIP) ? View.VISIBLE : View.GONE);
+			setClick(R.id.btn_pip, v -> playerView.enterPiP());
+		}
 		setClick(R.id.btn_more, v -> {
 			setControlsVisible(true);
 			if (activity.isInPictureInPictureMode()) return;
