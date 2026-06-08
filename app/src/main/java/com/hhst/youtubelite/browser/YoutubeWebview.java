@@ -303,7 +303,6 @@ public class YoutubeWebview extends WebView {
 		setLayerType(LAYER_TYPE_HARDWARE, null);
 
 		CookieManager.getInstance().setAcceptCookie(true);
-		CookieManager.getInstance().setAcceptThirdPartyCookies(this, true);
 
 		WebSettings settings = getSettings();
 		settings.setJavaScriptEnabled(true);
