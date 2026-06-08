@@ -255,7 +255,6 @@ public class Controller {
 
 	static boolean shouldExitFs(boolean fullscreen,
 	                            final boolean autoFullscreen,
-	                            final boolean autoRotate,
 	                            final int previousOrientation,
 	                            final int orientation) {
 		return fullscreen
@@ -663,11 +662,6 @@ public class Controller {
 	}
 
 	private void setupOverlayAndMoreButtons() {
-		ImageButton btnPip = playerView.findViewById(R.id.btn_pip);
-		if (btnPip != null) {
-			btnPip.setVisibility(extensionManager.isEnabled(Constant.ENABLE_PIP) ? View.VISIBLE : View.GONE);
-			setClick(R.id.btn_pip, v -> playerView.enterPiP());
-		}
 		setClick(R.id.btn_more, v -> {
 			setControlsVisible(true);
 			if (activity.isInPictureInPictureMode()) return;
@@ -982,7 +976,7 @@ public class Controller {
 	}
 
 	private boolean exitManualFullscreenOnPhysicalPortrait() {
-		if (!manualFullscreenSensorExit || autoFs || !state.isFullscreen() || !lastSyncedAutoRotate) {
+		if (!manualFullscreenSensorExit || autoFs || !state.isFullscreen()) {
 			return false;
 		}
 		if (!manualFullscreenSawLandscape) {
@@ -1023,7 +1017,7 @@ public class Controller {
 			if (!portraitExitLocked) {
 				suppressAutoEnterUntilPortrait = false;
 			}
-			boolean shouldExit = shouldExitFs(state.isFullscreen(), autoFs, lastSyncedAutoRotate, previousOrientation, orientation);
+			boolean shouldExit = shouldExitFs(state.isFullscreen(), autoFs, previousOrientation, orientation);
 			if (shouldExit) {
 				exitNow();
 			}
@@ -1158,6 +1152,9 @@ public class Controller {
 						engine.getPlaybackState() == Player.STATE_BUFFERING,
 						zoomListener.isZoomed());
 		applyRenderState(renderState);
+		if (state.isFullscreen()) {
+			playerView.setNavbarVisible(visible);
+		}
 		if (renderState.controlsVisible()) {
 			hideControlsAutomatically();
 		}
