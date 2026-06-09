@@ -107,6 +107,7 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 	private long lastBackTime;
 	private boolean bootstrapped;
 	private boolean suppressPiP;
+	private boolean wasInPiP;
 	@Nullable
 	private Runnable pendingPermissionAction;
 	@Nullable
@@ -233,6 +234,7 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 	public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, @NonNull Configuration newConfig) {
 		super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
 		player.onPictureInPictureModeChanged(isInPictureInPictureMode);
+		wasInPiP = isInPictureInPictureMode;
 	}
 
 	@Override
@@ -637,6 +639,10 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 		if (player != null && player.isInMiniPlayer() && !isChangingConfigurations() && !DeviceUtils.isInPictureInPictureMode(this)) {
 			player.suspendInAppMiniPlayerUiIfNeeded();
 		}
+		if (player != null && !isChangingConfigurations() && !DeviceUtils.isInPictureInPictureMode(this) && wasInPiP) {
+			player.pause();
+		}
+		wasInPiP = false;
 		super.onStop();
 	}
 
