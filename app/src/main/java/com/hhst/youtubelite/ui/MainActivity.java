@@ -639,7 +639,7 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 		if (player != null && player.isInMiniPlayer() && !isChangingConfigurations() && !DeviceUtils.isInPictureInPictureMode(this)) {
 			player.suspendInAppMiniPlayerUiIfNeeded();
 		}
-		if (player != null && !isChangingConfigurations() && !DeviceUtils.isInPictureInPictureMode(this) && wasInPiP) {
+		if (player != null && !isChangingConfigurations() && wasInPiP) {
 			player.pause();
 		}
 		wasInPiP = false;
