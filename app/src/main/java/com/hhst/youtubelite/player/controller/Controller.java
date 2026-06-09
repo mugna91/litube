@@ -255,11 +255,12 @@ public class Controller {
 
 	static boolean shouldExitFs(boolean fullscreen,
 	                            final boolean autoFullscreen,
+	                            final boolean autoRotate,
 	                            final int previousOrientation,
 	                            final int orientation) {
 		return fullscreen
 						&& orientation == Configuration.ORIENTATION_PORTRAIT
-						&& (autoFullscreen || previousOrientation == Configuration.ORIENTATION_LANDSCAPE);
+						&& (autoFullscreen || (autoRotate && previousOrientation == Configuration.ORIENTATION_LANDSCAPE));
 	}
 
 	static boolean shouldRequestPortraitOnManualExit(final boolean fullscreen,
@@ -976,7 +977,7 @@ public class Controller {
 	}
 
 	private boolean exitManualFullscreenOnPhysicalPortrait() {
-		if (!manualFullscreenSensorExit || autoFs || !state.isFullscreen()) {
+		if (!manualFullscreenSensorExit || autoFs || !state.isFullscreen() || !lastSyncedAutoRotate) {
 			return false;
 		}
 		if (!manualFullscreenSawLandscape) {
@@ -1017,7 +1018,7 @@ public class Controller {
 			if (!portraitExitLocked) {
 				suppressAutoEnterUntilPortrait = false;
 			}
-			boolean shouldExit = shouldExitFs(state.isFullscreen(), autoFs, previousOrientation, orientation);
+			boolean shouldExit = shouldExitFs(state.isFullscreen(), autoFs, lastSyncedAutoRotate, previousOrientation, orientation);
 			if (shouldExit) {
 				exitNow();
 			}
