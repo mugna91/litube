@@ -508,7 +508,13 @@ public class LitePlayer {
 
 	public void onPictureInPictureModeChanged(boolean isInPiP) {
 		controller.onPictureInPictureModeChanged(isInPiP);
-		if (!isInPiP) playerView.disableAutoPiP();
+		if (!isInPiP) {
+			if (engine.isPlaying()) {
+				playerView.enableAutoPiP();
+			} else {
+				playerView.disableAutoPiP();
+			}
+		}
 		if (wasInPip && !isInPiP && inMiniPlayer && onRestore != null) {
 			onRestore.run();
 		}
