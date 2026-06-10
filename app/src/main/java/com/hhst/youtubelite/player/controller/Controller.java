@@ -217,7 +217,10 @@ public class Controller {
 	public static boolean shouldEnablePrevious(@NonNull QueueNav availability) {
 		return availability.isPreviousActionEnabled();
 	}	@NonNull
-	private final Runnable hideControls = () -> setControlsVisible(false);
+	private final Runnable hideControls = () -> {
+		setControlsVisible(false);
+		syncNavbarWithControls(false);
+	};
 
 	public static boolean shouldEnableNext(@NonNull QueueNav availability) {
 		return availability.isNextActionEnabled();
