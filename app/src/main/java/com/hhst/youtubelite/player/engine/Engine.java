@@ -945,7 +945,7 @@ public class Engine {
 	}
 
 	@Nullable
-	static PlaybackRecoveryReason playbackRecoveryReason(@NonNull Throwable throwable) {
+	public static PlaybackRecoveryReason playbackRecoveryReason(@NonNull Throwable throwable) {
 		List<Throwable> pending = new ArrayList<>();
 		List<Throwable> visited = new ArrayList<>();
 		pending.add(throwable);
@@ -1013,7 +1013,7 @@ public class Engine {
 	                     @NonNull PlaybackPlan plan) {
 	}
 
-	enum PlaybackRecoveryReason {
+	public enum PlaybackRecoveryReason {
 		HTTP_403("HTTP 403"),
 		CONNECTION_OPEN_FAILED("connection open failure");
 
