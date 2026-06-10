@@ -317,6 +317,12 @@ public class YoutubeWebview extends WebView {
 		settings.setMediaPlaybackRequiresUserGesture(false);
 		settings.setUserAgentString("Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
 
+		// Performance optimizations
+		settings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+		settings.setRenderPriority(WebSettings.RenderPriority.HIGH);
+		settings.setEnableSmoothTransition(true);
+		settings.setOffscreenPreRaster(true);
+
 		JavascriptInterface jsInterface = new JavascriptInterface(this, youtubeExtractor, player, extensionManager, tabManager, queueRepository);
 		addJavascriptInterface(jsInterface, "lite");
 		setTag(jsInterface);
