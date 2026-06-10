@@ -255,12 +255,11 @@ public class Controller {
 
 	static boolean shouldExitFs(boolean fullscreen,
 	                            final boolean autoFullscreen,
-	                            final boolean autoRotate,
 	                            final int previousOrientation,
 	                            final int orientation) {
 		return fullscreen
 						&& orientation == Configuration.ORIENTATION_PORTRAIT
-						&& (autoFullscreen || (autoRotate && previousOrientation == Configuration.ORIENTATION_LANDSCAPE));
+						&& (autoFullscreen || previousOrientation == Configuration.ORIENTATION_LANDSCAPE);
 	}
 
 	static boolean shouldRequestPortraitOnManualExit(final boolean fullscreen,
@@ -977,7 +976,7 @@ public class Controller {
 	}
 
 	private boolean exitManualFullscreenOnPhysicalPortrait() {
-		if (!manualFullscreenSensorExit || autoFs || !state.isFullscreen() || !lastSyncedAutoRotate) {
+		if (!manualFullscreenSensorExit || autoFs || !state.isFullscreen()) {
 			return false;
 		}
 		if (!manualFullscreenSawLandscape) {
@@ -1018,7 +1017,7 @@ public class Controller {
 			if (!portraitExitLocked) {
 				suppressAutoEnterUntilPortrait = false;
 			}
-			boolean shouldExit = shouldExitFs(state.isFullscreen(), autoFs, lastSyncedAutoRotate, previousOrientation, orientation);
+			boolean shouldExit = shouldExitFs(state.isFullscreen(), autoFs, previousOrientation, orientation);
 			if (shouldExit) {
 				exitNow();
 			}
@@ -1153,11 +1152,14 @@ public class Controller {
 						engine.getPlaybackState() == Player.STATE_BUFFERING,
 						zoomListener.isZoomed());
 		applyRenderState(renderState);
-		if (state.isFullscreen()) {
-			playerView.setNavbarVisible(visible);
-		}
 		if (renderState.controlsVisible()) {
 			hideControlsAutomatically();
+		}
+	}
+
+	public void syncNavbarWithControls(boolean visible) {
+		if (state.isFullscreen()) {
+			playerView.setNavbarVisible(visible);
 		}
 	}
 
