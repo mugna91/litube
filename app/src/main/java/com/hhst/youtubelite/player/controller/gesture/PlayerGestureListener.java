@@ -144,7 +144,9 @@ public class PlayerGestureListener extends GestureDetector.SimpleOnGestureListen
 	@Override
 	public boolean onSingleTapConfirmed(@NonNull MotionEvent e) {
 		if (!enabled(Gesture.TAP)) return false;
-		controller.setControlsVisible(!controller.isControlsVisible());
+		boolean nowVisible = !controller.isControlsVisible();
+		controller.setControlsVisible(nowVisible);
+		controller.syncNavbarWithControls(nowVisible);
 		return true;
 	}
 
