@@ -52,7 +52,11 @@ public final class DeviceUtils {
 			// First touch: save original window brightness (may be -1 = system auto)
 			b = lp.screenBrightness < 0 ? 0.0f : lp.screenBrightness;
 		}
-		float delta = (dy / view.getHeight()) * scrollSens * SCROLL_SENSITIVITY_FACTOR;
+		// Non-linear sensitivity: slow near 0%, faster near 100% (like NewPipe)
+		float linearDelta = (dy / view.getHeight()) * scrollSens * SCROLL_SENSITIVITY_FACTOR;
+		// Scale delta by current brightness so small values are easier to control
+		float scale = 0.2f + 0.8f * b; // range [0.2, 1.0]
+		float delta = linearDelta * scale;
 		b = b + delta;
 
 		if (b <= 0.0f) {
