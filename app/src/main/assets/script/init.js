@@ -812,6 +812,18 @@
                     || window.innerHeight
                     || document.documentElement.clientHeight
                     || 0;
+                const viewportWidth = window.visualViewport?.width
+                    || window.innerWidth
+                    || document.documentElement.clientWidth
+                    || 0;
+                // In landscape tablet layout, player and content are side-by-side — no height limit needed
+                if (viewportWidth > viewportHeight && !shouldCompensate) {
+                    if (wrapper.dataset.maxheight === 'true') {
+                        wrapper.style.maxHeight = '';
+                        delete wrapper.dataset.maxheight;
+                    }
+                    return;
+                }
                 const playerHeight = player.clientHeight || 0;
                 const baseHeight = Math.floor(viewportHeight - playerHeight - Config.wrapOffset);
                 const nextHeight = Math.max(Config.wrapMinH, baseHeight + extraHeight);
