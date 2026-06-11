@@ -138,7 +138,8 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 		ViewCompat.setOnApplyWindowInsetsListener(mainView, (v, insets) -> {
 			Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
 			Insets tappable = insets.getInsets(WindowInsetsCompat.Type.tappableElement());
-			v.setPadding(systemBars.left, systemBars.top, systemBars.right, tappable.bottom);
+			int bottomPadding = Math.max(systemBars.bottom, tappable.bottom);
+			v.setPadding(systemBars.left, systemBars.top, systemBars.right, bottomPadding);
 			return insets;
 		});
 
