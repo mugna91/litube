@@ -365,12 +365,16 @@ public class YoutubeWebview extends WebView {
 			@Override
 			public void onPageStarted(@NonNull WebView view, @NonNull String url, @Nullable Bitmap favicon) {
 				super.onPageStarted(view, url, favicon);
-				// Force cookie consent dialog above native player
+				// Force cookie consent dialog above native player (only when visible)
 				evaluateJavascript(
 					"(function(){" +
-					"var s=document.createElement('style');" +
-					"s.textContent='ytd-consent-bump-v2-lightbox,tp-yt-paper-dialog,.ytd-consent-bump-v2-lightbox,#consent-bump{z-index:2147483647!important;position:fixed!important;}';" +
-					"document.head&&document.head.appendChild(s);" +
+					"function fixConsent(){" +
+					"var b=document.querySelector('ytd-consent-bump-v2-lightbox,#consent-bump,tp-yt-paper-dialog[aria-modal]');" +
+					"if(b){b.style.cssText='z-index:2147483647!important;position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;';}" +
+					"}" +
+					"fixConsent();" +
+					"var obs=new MutationObserver(fixConsent);" +
+					"obs.observe(document.body||document.documentElement,{childList:true,subtree:true});" +
 					"})()", null);
 				frame.epoch.incrementAndGet();
 				frame.finished = false;
