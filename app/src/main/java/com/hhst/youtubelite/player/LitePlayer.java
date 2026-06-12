@@ -27,8 +27,6 @@ import com.hhst.youtubelite.player.common.PlayerLoopMode;
 import com.hhst.youtubelite.player.common.PlayerPreferences;
 import com.hhst.youtubelite.player.controller.Controller;
 import com.hhst.youtubelite.player.engine.Engine;
-import com.hhst.youtubelite.player.engine.Engine.PlaybackRecoveryReason;
-import androidx.media3.datasource.HttpDataSource;
 import com.hhst.youtubelite.player.queue.QueueInvalidationListener;
 import com.hhst.youtubelite.player.queue.QueueNav;
 import com.hhst.youtubelite.player.queue.QueueRepository;
@@ -109,8 +107,6 @@ public class LitePlayer {
 	@Getter
 	private boolean inMiniPlayer;
 	private boolean wasInPip;
-	private int reExtractRetryCount = 0;
-	private static final int MAX_RE_EXTRACT_RETRIES = 2;
 	@NonNull
 	private final ExtensionManager extensionManager;
 
@@ -188,19 +184,7 @@ public class LitePlayer {
 
 			@Override
 			public void onPlayerError(@NonNull PlaybackException error) {
-				if (engine.recoverFromPlaybackError(error)) {
-					return;
-				}
-				// 403 may mean the stream URL expired — re-extract and retry
-				if (Engine.playbackRecoveryReason(error) == PlaybackRecoveryReason.HTTP_403
-							&& reExtractRetryCount < MAX_RE_EXTRACT_RETRIES
-							&& queuedId != null) {
-					reExtractRetryCount++;
-					String retryUrl = "https://www.youtube.com/watch?v=" + queuedId;
-					play(retryUrl);
-					return;
-				}
-				reExtractRetryCount = 0;
+				if (engine.recoverFromPlaybackError(error)) return;
 				ErrorDialog.show(activity, error.getMessage(), error);
 			}
 		});
@@ -249,7 +233,6 @@ public class LitePlayer {
 		String videoId = YoutubeExtractor.getVideoId(url);
 		if (videoId == null || Objects.equals(this.queuedId, videoId)) return;
 		this.queuedId = videoId;
-		reExtractRetryCount = 0;
 
 		activity.runOnUiThread(() -> {
 			engine.clear();
