@@ -126,6 +126,8 @@ public class YoutubeWebview extends WebView {
 	@Nullable
 	private Consumer<String> updateVisitedHistory;
 	@Nullable
+	private Consumer<String> onNonWatchNavigation;
+	@Nullable
 	private Consumer<String> onPageFinishedListener;
 	private YoutubeExtractor youtubeExtractor;
 	private LitePlayer player;
@@ -221,6 +223,10 @@ public class YoutubeWebview extends WebView {
 
 	public void setUpdateVisitedHistory(@Nullable Consumer<String> updateVisitedHistory) {
 		this.updateVisitedHistory = updateVisitedHistory;
+	}
+
+	public void setOnNonWatchNavigation(@Nullable Consumer<String> onNonWatchNavigation) {
+		this.onNonWatchNavigation = onNonWatchNavigation;
 	}
 
 	public void setOnPageFinishedListener(@Nullable Consumer<String> onPageFinishedListener) {
@@ -358,6 +364,12 @@ public class YoutubeWebview extends WebView {
 			public void doUpdateVisitedHistory(@NonNull WebView view, @NonNull String url, boolean isReload) {
 				super.doUpdateVisitedHistory(view, url, isReload);
 				evaluateJavascript("window.dispatchEvent(new Event('doUpdateVisitedHistory'));", null);
+				if (!isReload && onNonWatchNavigation != null
+						&& !Constant.PAGE_WATCH.equals(UrlUtils.getPageClass(url))) {
+					post(() -> { if (canGoBack()) goBack(); });
+					onNonWatchNavigation.accept(url);
+					return;
+				}
 				if (updateVisitedHistory != null) updateVisitedHistory.accept(url);
 				post(YoutubeWebview.this::refreshPoTokenContext);
 			}
@@ -498,121 +510,4 @@ public class YoutubeWebview extends WebView {
 					((FrameLayout) fullscreen).addView(view, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 					ViewUtils.setFullscreen(fullscreen, true);
 
-					((FrameLayout) mainActivity.getWindow().getDecorView()).addView(fullscreen, new FrameLayout.LayoutParams(-1, -1));
-					fullscreen.setVisibility(View.VISIBLE);
-					// keep screen going on
-					fullscreen.setKeepScreenOn(true);
-					evaluateJavascript("window.dispatchEvent(new Event('onFullScreen'));", null);
-				}
-			}
-
-			@Override
-			public void onHideCustomView() {
-				if (fullscreen == null) return;
-				ViewUtils.setFullscreen(fullscreen, false);
-				fullscreen.setVisibility(View.GONE);
-				fullscreen.setKeepScreenOn(false);
-				setVisibility(View.VISIBLE);
-				if (getContext() instanceof MainActivity) {
-					evaluateJavascript("window.dispatchEvent(new Event('exitFullScreen'));", null);
-				}
-			}
-		});
-	}
-
-	public void refreshPoTokenContext() {
-		PoTokenContextStore contextStore = poTokenContextStore;
-		String pageUrl = frame.url;
-		long capturedPageEpoch = frame.epoch.get();
-		if (contextStore == null || !isShown() || !isPoTokenReadyCandidate() || pageUrl == null) {
-			return;
-		}
-		String key = capturedPageEpoch + "|" + pageUrl;
-		if (key.equals(poTokenInflightKey) || key.equals(poTokenDoneKey)) return;
-		poTokenInflightKey = key;
-		evaluateJavascript(PO_TOKEN_CONTEXT_SCRIPT, rawValue -> {
-			if (contextStore != poTokenContextStore || capturedPageEpoch != frame.epoch.get() || !Objects.equals(pageUrl, frame.url)) {
-				poTokenInflightKey = null;
-				return;
-			}
-			PoTokenWebViewContext context = PoTokenWebViewContext.fromJson(pageUrl, capturedPageEpoch, PoTokenJsonUtils.normalizeEvaluateJavascriptResult(rawValue));
-			if (context != null) {
-				contextStore.update(context);
-				poTokenDoneKey = key;
-			}
-			poTokenInflightKey = null;
-		});
-	}
-
-	private void injectJavaScript(@Nullable String url) {
-		if (UrlUtils.isGoogleAccountsUrl(url)) return;
-		for (String js : scripts) evaluateJavascript(js, null);
-	}
-
-	public void injectJavaScript(@NonNull InputStream jsInputStream) {
-		String js = StreamIOUtils.readInputStream(jsInputStream);
-		if (js != null) {
-			addScript(js);
-		}
-	}
-
-	public void injectCss(@NonNull InputStream cssInputStream) {
-		String css = StreamIOUtils.readInputStream(cssInputStream);
-		if (css != null) {
-			String encodedCss = Base64.getEncoder().encodeToString(css.getBytes());
-			String js = String.format("""
-							(function(){
-							let style = document.createElement('style');
-							style.type = 'text/css';
-							style.textContent = window.atob('%s');
-							let target = document.head || document.documentElement;
-							if (target) target.appendChild(style);
-							})()
-							""", encodedCss);
-			addScript(js);
-		}
-	}
-
-	public void setScriptActive(boolean active) {
-		evaluateJavascript("(function(){window.__liteActive=" + active + ";if(window.__liteSetActive){window.__liteSetActive(" + active + ");}})();", null);
-	}
-
-	public void syncPreferences() {
-		if (extensionManager == null) return;
-		long version = extensionManager.version();
-		if (version == prefVersion) return;
-		prefVersion = version;
-		evaluateJavascript("window.dispatchEvent(new Event('litePreferencesChanged'));", null);
-	}
-
-	private void onNavStarted() {
-		poTokenInflightKey = null;
-		poTokenDoneKey = null;
-	}
-
-	private void addScript(@NonNull String js) {
-		Runnable task = () -> {
-			scripts.add(js);
-			if (frame.url != null && !UrlUtils.isGoogleAccountsUrl(frame.url)) {
-				evaluateJavascript(js, null);
-			}
-		};
-		if (Looper.myLooper() == Looper.getMainLooper()) {
-			task.run();
-			return;
-		}
-		post(task);
-	}
-
-/**
- * Snapshot of the current WebView navigation frame.
- */
-	private static final class Frame {
-		@NonNull
-		private final AtomicLong epoch = new AtomicLong();
-		private volatile boolean finished;
-		@Nullable
-		private volatile String url;
-	}
-
-}
+					((FrameLayout) mainActivity.getWindow().getDecorView()).addView(fullscreen, new FrameLayout.LayoutPara
