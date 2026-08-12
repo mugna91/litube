@@ -200,8 +200,6 @@ public class Controller {
 			portraitUnlockListener.enable();
 		}
 		this.playerView.setOnMiniPlayerBackgroundTap(() -> setControlsVisible(!isControlsVisible()));
-		this.zoomListener.setOnShowReset(show ->
-						showReset(show && isControlsVisible() && state.mode() == ControllerState.Mode.FULLSCREEN_UNLOCK));
 		this.zoomListener.setOnZoomChanged(toZoom -> {
 			String label = toZoom
 				? activity.getString(R.string.resize_fixed_width)
@@ -497,7 +495,6 @@ public class Controller {
 			});
 		}
 
-		setClick(R.id.btn_reset, v -> zoomListener.reset());
 	}
 
 	private void applyLoopMode(@NonNull ImageButton loopBtn, @NonNull PlayerLoopMode mode) {
@@ -1126,16 +1123,10 @@ public class Controller {
 		if (bar != null) {
 			ViewUtils.animateViewAlpha(bar, renderState.progressVisible() ? 1.0f : 0.0f, View.GONE);
 		}
-		showReset(renderState.resetVisible());
 		if (lockBtn != null) {
 			ViewUtils.animateViewAlpha(lockBtn, renderState.lockVisible() ? 1.0f : 0.0f, View.GONE);
 		}
 		updateMiniControls(renderState.miniVisible(), renderState.scrimVisible());
-	}
-
-	private void showReset(boolean show) {
-		View btn = playerView.findViewById(R.id.btn_reset);
-		if (btn != null) btn.setVisibility(show ? View.VISIBLE : View.GONE);
 	}
 
 	private void hideControlsAutomatically() {
