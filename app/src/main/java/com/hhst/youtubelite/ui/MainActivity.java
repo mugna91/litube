@@ -108,7 +108,9 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 	private boolean bootstrapped;
 	private boolean suppressPiP;
 	private boolean wasInPiP;
-	private boolean windowFocusAfterPiP;
+	private final Runnable pipDismissRunnable = () -> {
+		if (player != null) player.pause();
+	};
 	@Nullable
 	private Runnable pendingPermissionAction;
 	@Nullable
@@ -237,6 +239,11 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 		super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
 		player.onPictureInPictureModeChanged(isInPictureInPictureMode);
 		wasInPiP = isInPictureInPictureMode;
+		if (!isInPictureInPictureMode) {
+			// Post a delayed pause — onResume will cancel it if user returned to app
+			handler.removeCallbacks(pipDismissRunnable);
+			handler.postDelayed(pipDismissRunnable, 300);
+		}
 	}
 
 	@Override
@@ -616,14 +623,9 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 	}
 
 	@Override
-	public void onWindowFocusChanged(boolean hasFocus) {
-		super.onWindowFocusChanged(hasFocus);
-		if (hasFocus && wasInPiP) windowFocusAfterPiP = true;
-	}
-
-	@Override
 	protected void onResume() {
 		super.onResume();
+		handler.removeCallbacks(pipDismissRunnable);
 		suppressPiP = false;
 		if (player != null && player.isInMiniPlayer() && !DeviceUtils.isInPictureInPictureMode(this)) {
 			player.restoreInAppMiniPlayerUiIfNeeded();
@@ -647,13 +649,7 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 		if (player != null && player.isInMiniPlayer() && !isChangingConfigurations() && !DeviceUtils.isInPictureInPictureMode(this)) {
 			player.suspendInAppMiniPlayerUiIfNeeded();
 		}
-		if (player != null && !isChangingConfigurations() && wasInPiP
-				&& !DeviceUtils.isInPictureInPictureMode(this)
-				&& !windowFocusAfterPiP) {
-			player.pause();
-		}
 		wasInPiP = false;
-		windowFocusAfterPiP = false;
 		super.onStop();
 	}
 
