@@ -108,7 +108,6 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 	private boolean bootstrapped;
 	private boolean suppressPiP;
 	private boolean wasInPiP;
-	private boolean resumedFromPiP;
 	@Nullable
 	private Runnable pendingPermissionAction;
 	@Nullable
@@ -616,9 +615,14 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 	}
 
 	@Override
+	public void onWindowFocusChanged(boolean hasFocus) {
+		super.onWindowFocusChanged(hasFocus);
+		if (hasFocus && wasInPiP) windowFocusAfterPiP = true;
+	}
+
+	@Override
 	protected void onResume() {
 		super.onResume();
-		if (wasInPiP) resumedFromPiP = true;
 		suppressPiP = false;
 		if (player != null && player.isInMiniPlayer() && !DeviceUtils.isInPictureInPictureMode(this)) {
 			player.restoreInAppMiniPlayerUiIfNeeded();
@@ -642,14 +646,10 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 		if (player != null && player.isInMiniPlayer() && !isChangingConfigurations() && !DeviceUtils.isInPictureInPictureMode(this)) {
 			player.suspendInAppMiniPlayerUiIfNeeded();
 		}
-		// Pause only when PiP was dismissed by user (not screen-off, not returning to app)
-		if (player != null && !isChangingConfigurations() && wasInPiP
-				&& !DeviceUtils.isInPictureInPictureMode(this)
-				&& !resumedFromPiP) {
+		if (player != null && !isChangingConfigurations() && wasInPiP) {
 			player.pause();
 		}
 		wasInPiP = false;
-		resumedFromPiP = false;
 		super.onStop();
 	}
 
