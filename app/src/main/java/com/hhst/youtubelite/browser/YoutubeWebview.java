@@ -126,6 +126,8 @@ public class YoutubeWebview extends WebView {
 	@Nullable
 	private Consumer<String> updateVisitedHistory;
 	@Nullable
+	private Consumer<String> onWatchUrlDetected;
+	@Nullable
 	private Consumer<String> onPageFinishedListener;
 	private YoutubeExtractor youtubeExtractor;
 	private LitePlayer player;
@@ -221,6 +223,10 @@ public class YoutubeWebview extends WebView {
 
 	public void setUpdateVisitedHistory(@Nullable Consumer<String> updateVisitedHistory) {
 		this.updateVisitedHistory = updateVisitedHistory;
+	}
+
+	public void setOnWatchUrlDetected(@Nullable Consumer<String> onWatchUrlDetected) {
+		this.onWatchUrlDetected = onWatchUrlDetected;
 	}
 
 	public void setOnPageFinishedListener(@Nullable Consumer<String> onPageFinishedListener) {
@@ -346,6 +352,11 @@ public class YoutubeWebview extends WebView {
 					if (external != null) {
 						openExternal(external);
 						return true;
+					}
+					// Pre-warm extraction for watch URLs
+					if (onWatchUrlDetected != null
+							&& Constant.PAGE_WATCH.equals(UrlUtils.getPageClass(uri.toString()))) {
+						onWatchUrlDetected.accept(uri.toString());
 					}
 					// restrict domain
 					if (UrlUtils.isAllowedDomain(uri)) return false;
