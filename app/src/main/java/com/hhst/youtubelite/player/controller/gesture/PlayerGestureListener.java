@@ -11,6 +11,7 @@ import android.view.MotionEvent;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.media3.common.util.UnstableApi;
 
 import com.hhst.youtubelite.R;
@@ -36,6 +37,8 @@ public class PlayerGestureListener extends GestureDetector.SimpleOnGestureListen
 	private final Controller controller;
 	private final Handler handler;
 	private final Runnable hideHint;
+	@Nullable
+	private ZoomTouchListener zoomListener;
 
 	private GestureMode gestureMode = GestureMode.NONE;
 	private float brightness = -1, longPressSpeed = 1.0f;
@@ -46,6 +49,10 @@ public class PlayerGestureListener extends GestureDetector.SimpleOnGestureListen
 	private final Runnable resetSeek = () -> seekAccum = 0;
 	private long lastTapTime;
 	private float volume = -1;
+
+	public void setZoomListener(@Nullable ZoomTouchListener zoomListener) {
+		this.zoomListener = zoomListener;
+	}
 
 	public PlayerGestureListener(Activity activity, LitePlayerView playerView, Engine engine, Controller controller) {
 		this.activity = activity;
@@ -111,6 +118,7 @@ public class PlayerGestureListener extends GestureDetector.SimpleOnGestureListen
 
 	@Override
 	public boolean onDown(@NonNull MotionEvent e) {
+		if (zoomListener != null && zoomListener.isPinching()) return false;
 		if (!hasAnyEnabled()) return false;
 		handler.removeCallbacks(hideHint);
 		gestureMode = GestureMode.NONE;
