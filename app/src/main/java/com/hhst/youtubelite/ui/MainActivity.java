@@ -640,7 +640,9 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 		if (player != null && player.isInMiniPlayer() && !isChangingConfigurations() && !DeviceUtils.isInPictureInPictureMode(this)) {
 			player.suspendInAppMiniPlayerUiIfNeeded();
 		}
-		if (player != null && !isChangingConfigurations() && wasInPiP) {
+		// Only pause if we actually exited PiP (not just screen off while in PiP)
+		if (player != null && !isChangingConfigurations() && wasInPiP
+				&& !DeviceUtils.isInPictureInPictureMode(this)) {
 			player.pause();
 		}
 		wasInPiP = false;
