@@ -1,12 +1,15 @@
 package com.hhst.youtubelite.player.controller.gesture;
 
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+import android.view.animation.DecelerateInterpolator;
 
 import androidx.annotation.NonNull;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.ui.AspectRatioFrameLayout;
 
 import com.hhst.youtubelite.player.LitePlayerView;
 
@@ -18,18 +21,29 @@ import dagger.hilt.android.scopes.ActivityScoped;
 import lombok.Setter;
 
 /**
- * Component that handles app logic.
+ * Handles pinch-to-zoom gesture on the player, toggling between
+ * RESIZE_MODE_FIT and RESIZE_MODE_FIXED_WIDTH with a YouTube-style animation.
  */
 @ActivityScoped
 @UnstableApi
 public class ZoomTouchListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
+
+	private static final float ZOOM_IN_THRESHOLD  = 1.15f; // pinch-out threshold to trigger zoom
+	private static final float ZOOM_OUT_THRESHOLD = 0.88f; // pinch-in threshold to trigger unzoom
+	private static final long  ANIM_DURATION_MS   = 200L;
+
 	private final ScaleGestureDetector detector;
 	private final LitePlayerView playerView;
+
 	@Setter
 	private Consumer<Boolean> onShowReset;
-	private float scaleFactor = 1.0f;
-	private float lastX, lastY;
-	private int state = 0; // 0: idle, 1: scaling, 2: panning
+
+	/** Accumulated scale factor during an active pinch gesture. */
+	private float pinchFactor = 1.0f;
+	/** Whether we are currently in FIXED_WIDTH (zoomed) mode. */
+	private boolean zoomed = false;
+	/** Ongoing animator so we can cancel mid-flight. */
+	private ValueAnimator currentAnim = null;
 
 	@Inject
 	public ZoomTouchListener(Activity activity, LitePlayerView playerView) {
@@ -37,131 +51,114 @@ public class ZoomTouchListener extends ScaleGestureDetector.SimpleOnScaleGesture
 		this.detector = new ScaleGestureDetector(activity, this);
 	}
 
+	// Called by Controller for every touch event that GestureDetector didn't consume.
 	public void onTouch(MotionEvent event) {
 		detector.onTouchEvent(event);
 
-		if (event.getPointerCount() < 2) {
-			if (state != 0) {
-				state = 0;
-				checkResetVisibility();
-			}
-			return;
-		}
-
-		switch (event.getActionMasked()) {
-			case MotionEvent.ACTION_POINTER_DOWN:
-				lastX = centerX(event);
-				lastY = centerY(event);
-				state = 2;
-				break;
-
-			case MotionEvent.ACTION_MOVE:
-				if (state == 2 && scaleFactor > 1.0f) {
-					float cx = centerX(event);
-					float cy = centerY(event);
-					applyTranslation(cx - lastX, cy - lastY, false);
-					lastX = cx;
-					lastY = cy;
-				}
-				break;
-
-			case MotionEvent.ACTION_POINTER_UP:
-				if (event.getPointerCount() > 2) {
-					// Recenter when a finger lifts from a multi-touch gesture.
-					lastX = centerX(event);
-					lastY = centerY(event);
-				} else {
-					state = 0;
-				}
-				break;
+		// Reset pinchFactor when all fingers lift.
+		if (event.getPointerCount() < 2
+				&& event.getActionMasked() == MotionEvent.ACTION_UP) {
+			pinchFactor = 1.0f;
 		}
 	}
 
 	@Override
-	public boolean onScale(@NonNull ScaleGestureDetector detector) {
-		// Allow zoom up to 500%.
-		scaleFactor = Math.max(1.0f, Math.min(scaleFactor * detector.getScaleFactor(), 5.0f));
-		applyScale(scaleFactor);
-		checkResetVisibility();
+	public boolean onScaleBegin(@NonNull ScaleGestureDetector detector) {
+		pinchFactor = 1.0f;
 		return true;
 	}
 
+	@Override
+	public boolean onScale(@NonNull ScaleGestureDetector detector) {
+		pinchFactor *= detector.getScaleFactor();
+		pinchFactor = Math.max(0.5f, Math.min(pinchFactor, 2.5f));
+
+		if (!zoomed && pinchFactor >= ZOOM_IN_THRESHOLD) {
+			// Pinch-out: animate to FIXED_WIDTH
+			animateToZoomed(true);
+		} else if (zoomed && pinchFactor <= ZOOM_OUT_THRESHOLD) {
+			// Pinch-in: animate back to FIT
+			animateToZoomed(false);
+		}
+		return true;
+	}
+
+	@Override
+	public void onScaleEnd(@NonNull ScaleGestureDetector detector) {
+		pinchFactor = 1.0f;
+	}
+
+	/** Programmatic reset (e.g. from the reset button). */
 	public void reset() {
-		scaleFactor = 1.0f;
-		state = 0;
-		applyScale(1f);
-		applyTranslation(0, 0, true);
-		checkResetVisibility();
+		if (!zoomed) return;
+		animateToZoomed(false);
 	}
 
-	private void checkResetVisibility() {
+	public boolean isZoomed() {
+		return zoomed;
+	}
+
+	// ── animation ────────────────────────────────────────────────────────────
+
+	private void animateToZoomed(boolean toZoom) {
+		if (zoomed == toZoom) return;
+		zoomed = toZoom;
+
 		View target = getTargetView();
-		if (target == null) return;
-		boolean hasTranslation = Math.abs(target.getTranslationX()) > 5 || Math.abs(target.getTranslationY()) > 5;
-		if (onShowReset != null) onShowReset.accept(scaleFactor > 1.01f || hasTranslation);
-	}
-
-	private float centerX(MotionEvent e) {
-		float sum = 0;
-		int count = e.getPointerCount();
-		for (int i = 0; i < count; i++) sum += e.getX(i);
-		return sum / count;
-	}
-
-	private float centerY(MotionEvent e) {
-		float sum = 0;
-		int count = e.getPointerCount();
-		for (int i = 0; i < count; i++) sum += e.getY(i);
-		return sum / count;
-	}
-
-	private void applyScale(float scale) {
-		View target = getTargetView();
-		if (target != null) {
-			target.setScaleX(scale);
-			target.setScaleY(scale);
+		if (target == null) {
+			applyResizeMode(toZoom);
+			notifyResetVisibility();
+			return;
 		}
+
+		// Decide start / end scale for the visual "pop" effect.
+		float fromScale = toZoom ? 1.0f : 1.08f;
+		float toScale   = toZoom ? 1.08f : 1.0f;
+
+		// Switch the ExoPlayer resize mode immediately so the video fills the frame.
+		applyResizeMode(toZoom);
+
+		// Cancel any running animation.
+		if (currentAnim != null) currentAnim.cancel();
+
+		ValueAnimator anim = ValueAnimator.ofFloat(fromScale, toScale);
+		anim.setDuration(ANIM_DURATION_MS);
+		anim.setInterpolator(new DecelerateInterpolator());
+		anim.addUpdateListener(a -> {
+			float s = (float) a.getAnimatedValue();
+			target.setScaleX(s);
+			target.setScaleY(s);
+		});
+		anim.addListener(new android.animation.AnimatorListenerAdapter() {
+			@Override
+			public void onAnimationEnd(android.animation.Animator animation) {
+				// Settle to 1.0 so the view doesn't stay slightly over/under-scaled.
+				target.setScaleX(1.0f);
+				target.setScaleY(1.0f);
+				notifyResetVisibility();
+			}
+		});
+		currentAnim = anim;
+		anim.start();
 	}
 
-	private void applyTranslation(float dx, float dy, boolean isReset) {
-		View target = getTargetView();
-		if (target == null) return;
+	private void applyResizeMode(boolean zoom) {
+		int mode = zoom
+				? AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+				: AspectRatioFrameLayout.RESIZE_MODE_FIT;
+		playerView.setResizeMode(mode);
+	}
 
-		if (isReset) {
-			target.setTranslationX(0);
-			target.setTranslationY(0);
-		} else {
-			float nextX = target.getTranslationX() + dx;
-			float nextY = target.getTranslationY() + dy;
-
-			// Clamp movement so the content stays within the visible crop.
-			float limitX = (target.getWidth() * scaleFactor - target.getWidth()) / 2f;
-			float limitY = (target.getHeight() * scaleFactor - target.getHeight()) / 2f;
-
-			target.setTranslationX(Math.max(-limitX, Math.min(limitX, nextX)));
-			target.setTranslationY(Math.max(-limitY, Math.min(limitY, nextY)));
-		}
+	private void notifyResetVisibility() {
+		if (onShowReset != null) onShowReset.accept(zoomed);
 	}
 
 	private View getTargetView() {
-		// Prefer the content frame so zoom applies to the video area.
 		View contentFrame = playerView.findViewById(androidx.media3.ui.R.id.exo_content_frame);
 		if (contentFrame != null) return contentFrame;
-
-		// Fallback to the surface view.
 		View surface = playerView.getVideoSurfaceView();
 		if (surface != null) return surface;
-
-		// Final fallback: use the first child of the player view.
-		if (playerView.getChildCount() > 0) {
-			return playerView.getChildAt(0);
-		}
-
+		if (playerView.getChildCount() > 0) return playerView.getChildAt(0);
 		return playerView;
-	}
-
-	// Controller uses this to toggle the reset button.
-	public boolean isZoomed() {
-		return scaleFactor > 1.01f;
 	}
 }
