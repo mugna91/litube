@@ -41,7 +41,6 @@ public class PlayerGestureListener extends GestureDetector.SimpleOnGestureListen
 	private ZoomTouchListener zoomListener;
 
 	private GestureMode gestureMode = GestureMode.NONE;
-	private long pinchEndTimeMs = 0L;
 	private float brightness = -1, longPressSpeed = 1.0f;
 	private boolean longPressing, gesturing, swipeTriggered;
 	private long seekStartPos;
@@ -120,7 +119,6 @@ public class PlayerGestureListener extends GestureDetector.SimpleOnGestureListen
 	@Override
 	public boolean onDown(@NonNull MotionEvent e) {
 		if (zoomListener != null && zoomListener.isPinching()) {
-			pinchEndTimeMs = System.currentTimeMillis();
 			return false;
 		}
 		if (!hasAnyEnabled()) return false;
@@ -156,7 +154,7 @@ public class PlayerGestureListener extends GestureDetector.SimpleOnGestureListen
 	@Override
 	public boolean onSingleTapConfirmed(@NonNull MotionEvent e) {
 		if (zoomListener != null && (zoomListener.isPinching()
-				|| System.currentTimeMillis() - pinchEndTimeMs < 400L)) return false;
+				|| System.currentTimeMillis() - (zoomListener != null ? zoomListener.getPinchEndTimeMs() : 0L) < 400L)) return false;
 		if (!enabled(Gesture.TAP)) return false;
 		boolean nowVisible = !controller.isControlsVisible();
 		controller.setControlsVisible(nowVisible);
@@ -292,7 +290,7 @@ public class PlayerGestureListener extends GestureDetector.SimpleOnGestureListen
 	@Override
 	public void onLongPress(@NonNull MotionEvent e) {
 		if (zoomListener != null && (zoomListener.isPinching()
-				|| System.currentTimeMillis() - pinchEndTimeMs < 400L)) return;
+				|| System.currentTimeMillis() - (zoomListener != null ? zoomListener.getPinchEndTimeMs() : 0L) < 400L)) return;
 		if (!enabled(Gesture.LONG_PRESS) || !engine.isPlaying()) return;
 		vibrate();
 		longPressSpeed = engine.getPlaybackRate();
