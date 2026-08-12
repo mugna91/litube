@@ -202,6 +202,14 @@ public class Controller {
 		this.playerView.setOnMiniPlayerBackgroundTap(() -> setControlsVisible(!isControlsVisible()));
 		this.zoomListener.setOnShowReset(show ->
 						showReset(show && isControlsVisible() && state.mode() == ControllerState.Mode.FULLSCREEN_UNLOCK));
+		this.zoomListener.setOnZoomChanged(toZoom -> {
+			String label = toZoom
+				? activity.getString(R.string.resize_fixed_width)
+				: activity.getString(R.string.resize_fit);
+			showHint(label, 1200);
+		});
+		this.zoomListener.syncState();
+		gestureListener.setZoomListener(this.zoomListener);
 
 
 		playerView.post(() -> {
@@ -362,8 +370,8 @@ public class Controller {
 			if (action == MotionEvent.ACTION_DOWN && isControlsVisible()) {
 				handler.removeCallbacks(hideControls);
 			}
-			boolean handled = detector.onTouchEvent(ev);
-			if (!handled && isFullscreen()) zoomListener.onTouch(ev);
+			if (isFullscreen()) zoomListener.onTouch(ev);
+			boolean handled = !zoomListener.isPinching() && detector.onTouchEvent(ev);
 			if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
 				gestureListener.onTouchRelease();
 				if (longPress) {
