@@ -209,7 +209,6 @@ public class Controller {
 			showHint(label, 1200);
 		});
 		this.zoomListener.syncState();
-		gestureListener.setZoomListener(this.zoomListener);
 
 
 		playerView.post(() -> {
@@ -361,6 +360,7 @@ public class Controller {
 	private void setupListeners() {
 		// Wire gestures and player callbacks.
 		PlayerGestureListener gestureListener = new PlayerGestureListener(activity, playerView, engine, this);
+		gestureListener.setZoomListener(zoomListener);
 		GestureDetector detector = new GestureDetector(activity, gestureListener);
 		playerView.setOnTouchListener((v, ev) -> {
 			if (state.isInMiniPlayer()) {
