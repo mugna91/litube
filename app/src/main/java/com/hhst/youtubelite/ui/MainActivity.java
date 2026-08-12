@@ -108,6 +108,7 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 	private boolean bootstrapped;
 	private boolean suppressPiP;
 	private boolean wasInPiP;
+	private boolean windowFocusAfterPiP;
 	@Nullable
 	private Runnable pendingPermissionAction;
 	@Nullable
@@ -646,10 +647,13 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 		if (player != null && player.isInMiniPlayer() && !isChangingConfigurations() && !DeviceUtils.isInPictureInPictureMode(this)) {
 			player.suspendInAppMiniPlayerUiIfNeeded();
 		}
-		if (player != null && !isChangingConfigurations() && wasInPiP) {
+		if (player != null && !isChangingConfigurations() && wasInPiP
+				&& !DeviceUtils.isInPictureInPictureMode(this)
+				&& !windowFocusAfterPiP) {
 			player.pause();
 		}
 		wasInPiP = false;
+		windowFocusAfterPiP = false;
 		super.onStop();
 	}
 
