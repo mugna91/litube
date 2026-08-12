@@ -125,6 +125,13 @@ public final class YoutubeFragment extends Fragment {
 			tabManager.onUrlChanged(this, url);
 		});
 		webView.setOnPageFinishedListener(url -> takeHistorySnapshot());
+		// Pre-warm extraction when a watch URL is detected in shouldOverrideUrlLoading
+		// YoutubeExtractor deduplicates tasks so this attaches to the same future if play() fires later
+		webView.setOnWatchUrlDetected(url -> {
+			if (youtubeExtractor != null) {
+				youtubeExtractor.getInfo(url, null);
+			}
+		});
 		webView.init();
 		webView.setScriptActive(!isHidden());
 		if (savedInstanceState != null) webView.restoreState(savedInstanceState);
