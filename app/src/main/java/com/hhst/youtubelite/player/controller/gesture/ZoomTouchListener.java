@@ -109,7 +109,8 @@ public class ZoomTouchListener extends ScaleGestureDetector.SimpleOnScaleGesture
 
 	@Override
 	public boolean onScaleBegin(@NonNull ScaleGestureDetector detector) {
-		// Reset to current zoom state baseline so thresholds are relative to now
+		// Always read current resize mode so state is never stale
+		zoomed = playerView.getResizeMode() == AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH;
 		pinchFactor = zoomed ? ZOOM_IN_THRESHOLD + 0.01f : 1.0f;
 		pinching = true;
 		return true;
