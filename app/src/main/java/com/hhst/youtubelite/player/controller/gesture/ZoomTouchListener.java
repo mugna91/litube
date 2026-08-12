@@ -91,23 +91,27 @@ public class ZoomTouchListener extends ScaleGestureDetector.SimpleOnScaleGesture
 		}
 	}
 
-	@Override
-	public boolean onScaleBegin(@NonNull ScaleGestureDetector detector) {
-		pinchFactor = 1.0f;
-		pinching = true;
-		return true;
-	}
+
 
 	@Override
 	public boolean onScale(@NonNull ScaleGestureDetector detector) {
 		pinchFactor *= detector.getScaleFactor();
 		pinchFactor = Math.max(0.5f, Math.min(pinchFactor, 3.0f));
 
+		// Use accumulated factor relative to start (1.0) to detect direction
 		if (!zoomed && pinchFactor >= ZOOM_IN_THRESHOLD) {
 			animateToZoomed(true);
 		} else if (zoomed && pinchFactor <= ZOOM_OUT_THRESHOLD) {
 			animateToZoomed(false);
 		}
+		return true;
+	}
+
+	@Override
+	public boolean onScaleBegin(@NonNull ScaleGestureDetector detector) {
+		// Reset to current zoom state baseline so thresholds are relative to now
+		pinchFactor = zoomed ? ZOOM_IN_THRESHOLD + 0.01f : 1.0f;
+		pinching = true;
 		return true;
 	}
 
