@@ -1,5 +1,7 @@
 package com.hhst.youtubelite.player.controller.gesture;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.view.MotionEvent;
@@ -8,6 +10,7 @@ import android.view.View;
 import android.view.animation.DecelerateInterpolator;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.ui.AspectRatioFrameLayout;
 
@@ -21,28 +24,31 @@ import dagger.hilt.android.scopes.ActivityScoped;
 import lombok.Setter;
 
 /**
- * Handles pinch-to-zoom gesture on the player, toggling between
- * RESIZE_MODE_FIT and RESIZE_MODE_FIXED_WIDTH with a YouTube-style animation.
+ * Handles pinch-to-zoom: toggles RESIZE_MODE_FIT ↔ RESIZE_MODE_FIXED_WIDTH
+ * with a YouTube-style animation. Also exposes isPinching() so other gesture
+ * listeners can suppress single-touch handling during a pinch.
  */
 @ActivityScoped
 @UnstableApi
 public class ZoomTouchListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
 
-	private static final float ZOOM_IN_THRESHOLD  = 1.15f; // pinch-out threshold to trigger zoom
-	private static final float ZOOM_OUT_THRESHOLD = 0.88f; // pinch-in threshold to trigger unzoom
-	private static final long  ANIM_DURATION_MS   = 200L;
+	private static final float ZOOM_IN_THRESHOLD  = 1.12f;
+	private static final float ZOOM_OUT_THRESHOLD = 0.90f;
+	private static final long  ANIM_DURATION_MS   = 180L;
 
 	private final ScaleGestureDetector detector;
 	private final LitePlayerView playerView;
 
 	@Setter
 	private Consumer<Boolean> onShowReset;
+	/** Called with true when zooming in, false when zooming out. */
+	@Setter @Nullable
+	private Consumer<Boolean> onZoomChanged;
 
-	/** Accumulated scale factor during an active pinch gesture. */
 	private float pinchFactor = 1.0f;
-	/** Whether we are currently in FIXED_WIDTH (zoomed) mode. */
 	private boolean zoomed = false;
-	/** Ongoing animator so we can cancel mid-flight. */
+	private boolean pinching = false;
+	@Nullable
 	private ValueAnimator currentAnim = null;
 
 	@Inject
@@ -51,13 +57,27 @@ public class ZoomTouchListener extends ScaleGestureDetector.SimpleOnScaleGesture
 		this.detector = new ScaleGestureDetector(activity, this);
 	}
 
-	// Called by Controller for every touch event that GestureDetector didn't consume.
+	/** Sync initial state with whatever resize mode the player already has. */
+	public void syncState() {
+		zoomed = playerView.getResizeMode() == AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH;
+		pinchFactor = 1.0f;
+	}
+
+	/** True while a two-finger pinch is in progress. */
+	public boolean isPinching() {
+		return pinching;
+	}
+
 	public void onTouch(MotionEvent event) {
 		detector.onTouchEvent(event);
 
-		// Reset pinchFactor when all fingers lift.
-		if (event.getPointerCount() < 2
-				&& event.getActionMasked() == MotionEvent.ACTION_UP) {
+		int pointers = event.getPointerCount();
+		int action = event.getActionMasked();
+
+		if (pointers >= 2) {
+			pinching = true;
+		} else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+			pinching = false;
 			pinchFactor = 1.0f;
 		}
 	}
@@ -65,19 +85,18 @@ public class ZoomTouchListener extends ScaleGestureDetector.SimpleOnScaleGesture
 	@Override
 	public boolean onScaleBegin(@NonNull ScaleGestureDetector detector) {
 		pinchFactor = 1.0f;
+		pinching = true;
 		return true;
 	}
 
 	@Override
 	public boolean onScale(@NonNull ScaleGestureDetector detector) {
 		pinchFactor *= detector.getScaleFactor();
-		pinchFactor = Math.max(0.5f, Math.min(pinchFactor, 2.5f));
+		pinchFactor = Math.max(0.5f, Math.min(pinchFactor, 3.0f));
 
 		if (!zoomed && pinchFactor >= ZOOM_IN_THRESHOLD) {
-			// Pinch-out: animate to FIXED_WIDTH
 			animateToZoomed(true);
 		} else if (zoomed && pinchFactor <= ZOOM_OUT_THRESHOLD) {
-			// Pinch-in: animate back to FIT
 			animateToZoomed(false);
 		}
 		return true;
@@ -88,7 +107,6 @@ public class ZoomTouchListener extends ScaleGestureDetector.SimpleOnScaleGesture
 		pinchFactor = 1.0f;
 	}
 
-	/** Programmatic reset (e.g. from the reset button). */
 	public void reset() {
 		if (!zoomed) return;
 		animateToZoomed(false);
@@ -98,28 +116,25 @@ public class ZoomTouchListener extends ScaleGestureDetector.SimpleOnScaleGesture
 		return zoomed;
 	}
 
-	// ── animation ────────────────────────────────────────────────────────────
+	// ── animation ─────────────────────────────────────────────────────────────
 
 	private void animateToZoomed(boolean toZoom) {
 		if (zoomed == toZoom) return;
 		zoomed = toZoom;
+		pinchFactor = 1.0f;
 
 		View target = getTargetView();
-		if (target == null) {
-			applyResizeMode(toZoom);
-			notifyResetVisibility();
-			return;
-		}
 
-		// Decide start / end scale for the visual "pop" effect.
-		float fromScale = toZoom ? 1.0f : 1.08f;
-		float toScale   = toZoom ? 1.08f : 1.0f;
-
-		// Switch the ExoPlayer resize mode immediately so the video fills the frame.
 		applyResizeMode(toZoom);
+		if (onZoomChanged != null) onZoomChanged.accept(toZoom);
+		notifyResetVisibility();
 
-		// Cancel any running animation.
+		if (target == null) return;
+
 		if (currentAnim != null) currentAnim.cancel();
+
+		float fromScale = toZoom ? 0.94f : 1.06f;
+		float toScale   = 1.0f;
 
 		ValueAnimator anim = ValueAnimator.ofFloat(fromScale, toScale);
 		anim.setDuration(ANIM_DURATION_MS);
@@ -129,13 +144,11 @@ public class ZoomTouchListener extends ScaleGestureDetector.SimpleOnScaleGesture
 			target.setScaleX(s);
 			target.setScaleY(s);
 		});
-		anim.addListener(new android.animation.AnimatorListenerAdapter() {
+		anim.addListener(new AnimatorListenerAdapter() {
 			@Override
-			public void onAnimationEnd(android.animation.Animator animation) {
-				// Settle to 1.0 so the view doesn't stay slightly over/under-scaled.
+			public void onAnimationEnd(Animator animation) {
 				target.setScaleX(1.0f);
 				target.setScaleY(1.0f);
-				notifyResetVisibility();
 			}
 		});
 		currentAnim = anim;
@@ -143,10 +156,9 @@ public class ZoomTouchListener extends ScaleGestureDetector.SimpleOnScaleGesture
 	}
 
 	private void applyResizeMode(boolean zoom) {
-		int mode = zoom
+		playerView.setResizeMode(zoom
 				? AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
-				: AspectRatioFrameLayout.RESIZE_MODE_FIT;
-		playerView.setResizeMode(mode);
+				: AspectRatioFrameLayout.RESIZE_MODE_FIT);
 	}
 
 	private void notifyResetVisibility() {
