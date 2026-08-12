@@ -291,6 +291,8 @@ public class PlayerGestureListener extends GestureDetector.SimpleOnGestureListen
 
 	@Override
 	public void onLongPress(@NonNull MotionEvent e) {
+		if (zoomListener != null && (zoomListener.isPinching()
+				|| System.currentTimeMillis() - pinchEndTimeMs < 400L)) return;
 		if (!enabled(Gesture.LONG_PRESS) || !engine.isPlaying()) return;
 		vibrate();
 		longPressSpeed = engine.getPlaybackRate();
