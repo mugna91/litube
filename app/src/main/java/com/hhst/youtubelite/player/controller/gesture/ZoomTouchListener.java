@@ -48,6 +48,7 @@ public class ZoomTouchListener extends ScaleGestureDetector.SimpleOnScaleGesture
 	private float pinchFactor = 1.0f;
 	private boolean zoomed = false;
 	private boolean pinching = false;
+	private long pinchEndTimeMs = 0L;
 	@Nullable
 	private ValueAnimator currentAnim = null;
 
@@ -59,13 +60,20 @@ public class ZoomTouchListener extends ScaleGestureDetector.SimpleOnScaleGesture
 
 	/** Sync initial state with whatever resize mode the player already has. */
 	public void syncState() {
-		zoomed = playerView.getResizeMode() == AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH;
 		pinchFactor = 1.0f;
+		// post() ensures playerView layout is complete before reading resize mode
+		playerView.post(() ->
+			zoomed = playerView.getResizeMode() == AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH);
 	}
 
 	/** True while a two-finger pinch is in progress. */
 	public boolean isPinching() {
 		return pinching;
+	}
+
+	/** Timestamp of the last pinch end, for cooldown checks. */
+	public long getPinchEndTimeMs() {
+		return pinchEndTimeMs;
 	}
 
 	public void onTouch(MotionEvent event) {
@@ -77,6 +85,7 @@ public class ZoomTouchListener extends ScaleGestureDetector.SimpleOnScaleGesture
 		if (pointers >= 2) {
 			pinching = true;
 		} else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+			if (pinching) pinchEndTimeMs = System.currentTimeMillis();
 			pinching = false;
 			pinchFactor = 1.0f;
 		}
