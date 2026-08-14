@@ -109,7 +109,9 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 	private boolean suppressPiP;
 	private boolean wasInPiP;
 	private final Runnable pipDismissRunnable = () -> {
-		if (player != null) player.pause();
+		if (player != null && !DeviceUtils.isInPictureInPictureMode(this)) {
+			player.pause();
+		}
 	};
 	@Nullable
 	private Runnable pendingPermissionAction;
@@ -238,11 +240,12 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 	public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, @NonNull Configuration newConfig) {
 		super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
 		player.onPictureInPictureModeChanged(isInPictureInPictureMode);
-		wasInPiP = isInPictureInPictureMode;
-		if (!isInPictureInPictureMode) {
-			// Post a delayed pause — onResume will cancel it if user returned to app
+		if (isInPictureInPictureMode) {
+			wasInPiP = true;
+		} else {
+			// Schedule pause — onStart will cancel it if user returns to app
 			handler.removeCallbacks(pipDismissRunnable);
-			handler.postDelayed(pipDismissRunnable, 300);
+			handler.postDelayed(pipDismissRunnable, 500);
 		}
 	}
 
@@ -623,9 +626,16 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 	}
 
 	@Override
+	protected void onStart() {
+		super.onStart();
+		// Cancel PiP dismiss pause if user returned to app
+		handler.removeCallbacks(pipDismissRunnable);
+		wasInPiP = false;
+	}
+
+	@Override
 	protected void onResume() {
 		super.onResume();
-		handler.removeCallbacks(pipDismissRunnable);
 		suppressPiP = false;
 		if (player != null && player.isInMiniPlayer() && !DeviceUtils.isInPictureInPictureMode(this)) {
 			player.restoreInAppMiniPlayerUiIfNeeded();
@@ -649,7 +659,6 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 		if (player != null && player.isInMiniPlayer() && !isChangingConfigurations() && !DeviceUtils.isInPictureInPictureMode(this)) {
 			player.suspendInAppMiniPlayerUiIfNeeded();
 		}
-		wasInPiP = false;
 		super.onStop();
 	}
 
