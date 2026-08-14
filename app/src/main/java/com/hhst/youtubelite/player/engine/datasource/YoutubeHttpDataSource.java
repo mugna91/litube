@@ -70,6 +70,10 @@ public final class YoutubeHttpDataSource extends BaseDataSource implements HttpD
 	private final RequestProperties defaultRequestProperties;
 	private final RequestProperties requestProperties;
 	private final boolean keepPostFor302Redirects;
+	private static final String ANDROID_VR_CLIENT = "ANDROID_VR";
+	private static final String ANDROID_VR_USER_AGENT =
+					"com.google.android.apps.youtube.vr.oculus/1.65.10 "
+									+ "(Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip";
 	private final String userAgent;
 
 	@Nullable
@@ -333,9 +337,15 @@ public final class YoutubeHttpDataSource extends BaseDataSource implements HttpD
 		conn.setRequestProperty(HttpHeaders.TE, "trailers");
 		conn.setRequestProperty(HttpHeaders.ACCEPT, "*/*");
 
-		boolean isAndroidStreamingUrl = isAndroidStreamingUrl(requestUrl);
+		// isAndroidStreamingUrl() matches "&c=ANDROID", which is also a prefix of
+		// "&c=ANDROID_VR". Checking the VR client first keeps those URLs from being
+		// sent with the plain Android user-agent, which YouTube answers with 403.
+		boolean isAndroidVrStreamingUrl = requestUrl.contains("&c=" + ANDROID_VR_CLIENT);
+		boolean isAndroidStreamingUrl = !isAndroidVrStreamingUrl && isAndroidStreamingUrl(requestUrl);
 		boolean isIosStreamingUrl = isIosStreamingUrl(requestUrl);
-		if (isAndroidStreamingUrl)
+		if (isAndroidVrStreamingUrl)
+			conn.setRequestProperty(HttpHeaders.USER_AGENT, ANDROID_VR_USER_AGENT);
+		else if (isAndroidStreamingUrl)
 			conn.setRequestProperty(HttpHeaders.USER_AGENT, getAndroidUserAgent(null));
 		else if (isIosStreamingUrl)
 			conn.setRequestProperty(HttpHeaders.USER_AGENT, getIosUserAgent(null));
