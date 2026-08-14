@@ -107,16 +107,7 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 	private long lastBackTime;
 	private boolean bootstrapped;
 	private boolean suppressPiP;
-	private boolean wasInPiP;
-	private boolean startedBeforePipExit;
-	private final Runnable pipDismissRunnable = () -> {
-		// Only pause if user did NOT return to the app (startedBeforePipExit = false means
-		// onStart fired after onPictureInPictureModeChanged, i.e. swipe/X dismiss)
-		if (player != null && !startedBeforePipExit) {
-			player.pause();
-		}
-		startedBeforePipExit = false;
-	};
+	private boolean stoppedWhileInPiP;
 	@Nullable
 	private Runnable pendingPermissionAction;
 	@Nullable
@@ -245,13 +236,13 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 		super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
 		player.onPictureInPictureModeChanged(isInPictureInPictureMode);
 		if (isInPictureInPictureMode) {
-			wasInPiP = true;
-			startedBeforePipExit = false;
-		} else {
-			// If onStart already fired, user is returning to the app
-			// If not, this is a swipe/X dismiss — schedule pause
-			handler.removeCallbacks(pipDismissRunnable);
-			handler.postDelayed(pipDismissRunnable, 200);
+			stoppedWhileInPiP = false;
+		} else if (stoppedWhileInPiP) {
+			// The activity stopped while still in PiP: the window was dismissed
+			// (swipe / X), not expanded back into the app. Returning to the app
+			// never stops the activity, so this flag is only set on dismissal.
+			stoppedWhileInPiP = false;
+			if (player != null) player.pause();
 		}
 	}
 
@@ -634,10 +625,7 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 	@Override
 	protected void onStart() {
 		super.onStart();
-		// Track that onStart fired — used by pipDismissRunnable to detect
-		// whether the user returned to the app or dismissed PiP externally
-		if (wasInPiP) startedBeforePipExit = true;
-		wasInPiP = false;
+		stoppedWhileInPiP = false;
 	}
 
 	@Override
@@ -663,6 +651,7 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 
 	@Override
 	protected void onStop() {
+		stoppedWhileInPiP = DeviceUtils.isInPictureInPictureMode(this);
 		if (player != null && player.isInMiniPlayer() && !isChangingConfigurations() && !DeviceUtils.isInPictureInPictureMode(this)) {
 			player.suspendInAppMiniPlayerUiIfNeeded();
 		}
