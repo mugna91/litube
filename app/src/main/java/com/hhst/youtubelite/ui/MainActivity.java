@@ -108,10 +108,14 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 	private boolean bootstrapped;
 	private boolean suppressPiP;
 	private boolean wasInPiP;
+	private boolean startedBeforePipExit;
 	private final Runnable pipDismissRunnable = () -> {
-		if (player != null && !DeviceUtils.isInPictureInPictureMode(this)) {
+		// Only pause if user did NOT return to the app (startedBeforePipExit = false means
+		// onStart fired after onPictureInPictureModeChanged, i.e. swipe/X dismiss)
+		if (player != null && !startedBeforePipExit) {
 			player.pause();
 		}
+		startedBeforePipExit = false;
 	};
 	@Nullable
 	private Runnable pendingPermissionAction;
@@ -242,10 +246,12 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 		player.onPictureInPictureModeChanged(isInPictureInPictureMode);
 		if (isInPictureInPictureMode) {
 			wasInPiP = true;
+			startedBeforePipExit = false;
 		} else {
-			// Schedule pause — onStart will cancel it if user returns to app
+			// If onStart already fired, user is returning to the app
+			// If not, this is a swipe/X dismiss — schedule pause
 			handler.removeCallbacks(pipDismissRunnable);
-			handler.postDelayed(pipDismissRunnable, 500);
+			handler.postDelayed(pipDismissRunnable, 200);
 		}
 	}
 
@@ -628,8 +634,9 @@ public final class MainActivity extends AppCompatActivity implements LifecycleEv
 	@Override
 	protected void onStart() {
 		super.onStart();
-		// Cancel PiP dismiss pause if user returned to app
-		handler.removeCallbacks(pipDismissRunnable);
+		// Track that onStart fired — used by pipDismissRunnable to detect
+		// whether the user returned to the app or dismissed PiP externally
+		if (wasInPiP) startedBeforePipExit = true;
 		wasInPiP = false;
 	}
 
