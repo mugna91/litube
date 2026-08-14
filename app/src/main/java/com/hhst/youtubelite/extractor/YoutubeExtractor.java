@@ -318,7 +318,58 @@ public final class YoutubeExtractor {
 				catalog.getSubtitleCandidates().add(StreamCandidate.subtitle(stream));
 			}
 		}
+		if (!live) {
+			preferPoTokenCandidates(catalog);
+		}
+		logCandidateClients(catalog);
 		return catalog;
+	}
+
+	/**
+	 * Drops candidates whose client produced no streaming PoToken.
+	 * <p>
+	 * Streams served without a {@code pot} parameter play for roughly a minute
+	 * before YouTube starts answering 403 to further range requests, so a
+	 * PoToken-backed client is always preferred when one is available. Lists
+	 * with no PoToken-backed candidate at all are left untouched, since a
+	 * short-lived stream still beats no stream.
+	 */
+	private static void preferPoTokenCandidates(@NonNull StreamCatalog catalog) {
+		retainPoTokenCandidates(catalog.getVideoCandidates());
+		retainPoTokenCandidates(catalog.getAudioCandidates());
+		retainPoTokenCandidates(catalog.getMuxedCandidates());
+		retainPoTokenCandidates(catalog.getManifestCandidates());
+	}
+
+	// TODO temporary diagnostic — remove once PoToken selection is confirmed
+	private static void logCandidateClients(@NonNull StreamCatalog catalog) {
+		android.util.Log.d("STREAM_SELECT", "video=" + describe(catalog.getVideoCandidates())
+					+ " audio=" + describe(catalog.getAudioCandidates())
+					+ " muxed=" + describe(catalog.getMuxedCandidates()));
+	}
+
+	@NonNull
+	private static String describe(@NonNull List<StreamCandidate> candidates) {
+		StringBuilder builder = new StringBuilder("[");
+		for (StreamCandidate candidate : candidates) {
+			if (builder.length() > 1) builder.append(',');
+			builder.append(candidate.getSourceClient())
+						.append(candidate.isStreamPoToken() ? "+pot" : "-pot");
+		}
+		return builder.append(']').toString();
+	}
+
+	private static void retainPoTokenCandidates(@NonNull List<StreamCandidate> candidates) {
+		boolean anyWithPoToken = false;
+		for (StreamCandidate candidate : candidates) {
+			if (candidate.isStreamPoToken()) {
+				anyWithPoToken = true;
+				break;
+			}
+		}
+		if (anyWithPoToken) {
+			candidates.removeIf(candidate -> !candidate.isStreamPoToken());
+		}
 	}
 
 	@NonNull
@@ -497,265 +548,4 @@ public final class YoutubeExtractor {
 			if (stream == null || !isPlayableUrl(stream.getContent())) continue;
 			String key = videoKey(stream);
 			VideoStream prev = best.get(key);
-			if (prev == null || isBetterVideo(stream, prev)) {
-				best.put(key, stream);
-			}
-		}
-		List<VideoStream> result = new ArrayList<>(best.values());
-		result.sort((first, second) -> {
-			int height = Integer.compare(videoHeight(second), videoHeight(first));
-			if (height != 0) return height;
-			int fps = Integer.compare(videoFps(second), videoFps(first));
-			if (fps != 0) return fps;
-			return Integer.compare(videoBitrate(second), videoBitrate(first));
-		});
-		return result;
-	}
-
-	@NonNull
-	private List<AudioStream> normalizeAudioStreams(@Nullable List<AudioStream> streams) {
-		if (streams == null) return new ArrayList<>();
-		Map<String, AudioStream> best = new LinkedHashMap<>();
-		for (AudioStream stream : streams) {
-			if (stream == null || stream.getFormat() != MediaFormat.M4A) continue;
-			String key = audioKey(stream);
-			AudioStream prev = best.get(key);
-			if (prev == null || isBetterAudio(stream, prev)) {
-				best.put(key, stream);
-			}
-		}
-		return new ArrayList<>(best.values());
-	}
-
-	@NonNull
-	private <T extends Stream> List<T> filterPlayableStreams(@Nullable List<T> streams) {
-		if (streams == null) return new ArrayList<>();
-		List<T> result = new ArrayList<>();
-		for (T stream : streams) {
-			if (stream != null && isPlayableUrl(stream.getContent())) {
-				result.add(stream);
-			}
-		}
-		return result;
-	}
-
-	@NonNull
-	private List<AudioStream> filterPlayableAudioStreams(@Nullable List<AudioStream> streams) {
-		if (streams == null) return new ArrayList<>();
-		List<AudioStream> result = new ArrayList<>();
-		for (AudioStream stream : streams) {
-			if (stream != null
-							&& stream.getFormat() == MediaFormat.M4A
-							&& isPlayableUrl(stream.getContent())) {
-				result.add(stream);
-			}
-		}
-		return result;
-	}
-
-	@Nullable
-	private String getBestImageUrl(@NonNull List<Image> images) {
-		if (images.isEmpty()) return null;
-		Map<Image.ResolutionLevel, Integer> priority = Map.of(
-						Image.ResolutionLevel.HIGH, 3,
-						Image.ResolutionLevel.MEDIUM, 2,
-						Image.ResolutionLevel.LOW, 1,
-						Image.ResolutionLevel.UNKNOWN, 0);
-		return images.stream()
-						.max(Comparator.comparingInt(img ->
-										priority.getOrDefault(img.getEstimatedResolutionLevel(), 0)))
-						.map(Image::getUrl)
-						.orElse(null);
-	}
-
-	@Nullable
-	private String buildDefaultThumbnailUrl(@Nullable String videoId) {
-		if (videoId == null || videoId.isBlank()) {
-			return null;
-		}
-		return "https://img.youtube.com/vi/" + videoId + "/hqdefault.jpg";
-	}
-
-	private void ensurePlayableSources(@NonNull String videoId,
-	                                   @NonNull DeliveryCatalog deliveries,
-	                                   @NonNull PlaybackPlan plan)
-					throws org.schabi.newpipe.extractor.exceptions.ExtractionException {
-		if (isPlayableUrl(plan.getManifestUrl())
-						|| plan.getDelivery() != null
-						|| plan.getVideoCandidate() != null
-						|| plan.getAudioCandidate() != null
-						|| plan.getMuxedCandidate() != null
-						|| !deliveries.getItems().isEmpty()) {
-			return;
-		}
-		throw new org.schabi.newpipe.extractor.exceptions.ExtractionException(
-						"No supported playable streams found for videoId=" + videoId);
-	}
-
-	private void ensureNotCancelled(@Nullable ExtractionSession session)
-					throws InterruptedException {
-		if (session != null && session.isCancelled()) {
-			throw new InterruptedException("Extraction canceled");
-		}
-		if (Thread.currentThread().isInterrupted()) {
-			throw new InterruptedException("Extraction interrupted");
-		}
-	}
-
-	@NonNull
-	private String videoKey(@NonNull VideoStream stream) {
-		return stream.getResolution() + "#" + stream.getFps();
-	}
-
-	@NonNull
-	private String audioKey(@NonNull AudioStream stream) {
-		String name = stream.getAudioTrackName();
-		return name == null ? "" : name.trim().toLowerCase(Locale.ROOT);
-	}
-
-	private boolean isBetterVideo(@NonNull VideoStream first, @NonNull VideoStream second) {
-		int codec = Integer.compare(codecPriority(first.getCodec()), codecPriority(second.getCodec()));
-		if (codec != 0) return codec > 0;
-		int fps = Integer.compare(videoFps(first), videoFps(second));
-		if (fps != 0) return fps > 0;
-		return videoBitrate(first) > videoBitrate(second);
-	}
-
-	private boolean isBetterAudio(@NonNull AudioStream first, @NonNull AudioStream second) {
-		return audioBitrate(first) > audioBitrate(second);
-	}
-
-	private int codecPriority(@Nullable String codec) {
-		if (codec == null) return 0;
-		String lower = codec.toLowerCase(Locale.ROOT);
-		if (lower.startsWith("avc") || lower.startsWith("h264")) return 4;
-		if (lower.contains("vp9") || lower.contains("vp8")) return 3;
-		if (lower.contains("h265")) return 2;
-		if (lower.contains("av01")) return 1;
-		return 0;
-	}
-
-	private int videoHeight(@NonNull VideoStream stream) {
-		return stream.getHeight();
-	}
-
-	private int videoFps(@NonNull VideoStream stream) {
-		return stream.getFps();
-	}
-
-	private int videoBitrate(@NonNull VideoStream stream) {
-		return stream.getBitrate();
-	}
-
-	private int audioBitrate(@NonNull AudioStream stream) {
-		return stream.getAverageBitrate() > 0 ? stream.getAverageBitrate() : stream.getBitrate();
-	}
-
-	@Nullable
-	private String sanitizePlaybackUrl(@Nullable String url) {
-		if (url == null) {
-			return null;
-		}
-		String trimmedUrl = url.trim();
-		return isPlayableUrl(trimmedUrl) ? trimmedUrl : null;
-	}
-
-	private boolean isPlayableUrl(@Nullable String url) {
-		if (url == null || url.isBlank()) {
-			return false;
-		}
-		try {
-			URI uri = URI.create(url.trim());
-			String scheme = uri.getScheme();
-			String host = uri.getHost();
-			return host != null
-							&& !host.isEmpty()
-							&& ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme));
-		} catch (IllegalArgumentException ignored) {
-			return false;
-		}
-	}
-
-	private boolean isBlank(@Nullable String value) {
-		return value == null || value.isBlank();
-	}
-
-	@NonNull
-	private <T> T copy(@NonNull T value,
-	                   @NonNull Class<T> type) {
-		T copy = gson.fromJson(gson.toJson(value), type);
-		return copy != null ? copy : value;
-	}
-
-/**
- * Download task description used by the download engine.
- */
-	private final class Task {
-		@NonNull
-		private final ExtractionSession root;
-		@NonNull
-		private final CompletableFuture<PlaybackDetails> base;
-		@NonNull
-		private final AtomicInteger refs = new AtomicInteger();
-
-		private Task(@NonNull String videoId) {
-			this.root = new ExtractionSession(auth.create("https://www.youtube.com/watch?v=" + videoId));
-			this.base = CompletableFuture.supplyAsync(() -> {
-				try {
-					return load(videoId, root);
-				} catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
-					throw new CompletionException(e);
-				} catch (final IOException
-				               | org.schabi.newpipe.extractor.exceptions.ExtractionException e) {
-					throw new CompletionException(e);
-				}
-			}, executor);
-			base.whenComplete((ignored, error) -> tasks.remove(videoId, this));
-		}
-
-		@NonNull
-		private CompletableFuture<PlaybackDetails> attach(@Nullable ExtractionSession session) {
-			refs.incrementAndGet();
-			AtomicBoolean done = new AtomicBoolean();
-			CompletableFuture<PlaybackDetails> future = new CompletableFuture<>();
-			future.whenComplete((ignored, error) -> release(done));
-			if (session != null) {
-				session.register(() ->
-								future.completeExceptionally(new InterruptedException("Extraction canceled")));
-				if (session.isCancelled()) {
-					future.completeExceptionally(new InterruptedException("Extraction canceled"));
-					return future;
-				}
-			}
-			base.whenComplete((value, error) -> {
-				if (error == null) {
-					future.complete(copy(value, PlaybackDetails.class));
-					return;
-				}
-				Throwable cause = error;
-				while (cause instanceof CompletionException && cause.getCause() != null) {
-					cause = cause.getCause();
-				}
-				future.completeExceptionally(cause);
-			});
-			return future;
-		}
-
-		private void release(@NonNull AtomicBoolean done) {
-			if (!done.compareAndSet(false, true)) {
-				return;
-			}
-			if (refs.decrementAndGet() == 0 && !base.isDone()) {
-				root.cancel();
-			}
-		}
-	}
-}
-
-/**
- * Value object that pairs StreamInfo with the optional YouTube extractor.
- */
-record ExtractedInfo(@NonNull StreamInfo info,
-                     @Nullable YoutubeStreamExtractor youtube) {
-}
+			
